@@ -1,0 +1,102 @@
+# history settings
+HISTCONTROL=ignoredups
+HISTFILESIZE=10000
+HISTSIZE=200
+
+# vi keymap
+set -o vi
+
+# trash dir path
+TRASHDIR="$HOME/Trash"
+
+# prompt (pwd cuz i dont like home expansion)
+export PS1='\[\e[31m\]$(pwd)\$\[\e[m\] '
+
+# aliases here
+alias copy="xsel -ib"
+alias cp="cp -v"
+alias exa="exa --group-directories-first -l"
+alias mkdir="mkdir -vp"
+alias mv="mv -v"
+alias note="nvim ~/Documents/note.md"
+alias rm="rm -vi"
+alias sansi="sed 's/\x1B\[[0-9;]\{1,\}[A-Za-z]//g'" # strip ansi codes from stdin
+
+# print tldr of first arg
+cheat() {
+  if [ -z "$1" ]; then
+      echo "Usage: cheat COMMAND" 1>&2
+      return 1
+  fi
+  \curl "cheat.sh/$1"
+}
+
+# print battery status
+bats() {
+    capacity=$(</sys/class/power_supply/BAT1/capacity)
+    status=$(</sys/class/power_supply/BAT1/status)
+    if [ -z "$capacity" ] || [ -z "$status" ]; then
+        echo "Couldn't read battery stats" 1>&2
+        return 1
+    fi
+    echo "Capacity: $capacity Status: $status"
+}
+
+# basic trash utility implementation
+trash() {
+  if [ "${#@}" -lt 1 ]; then
+    echo "Usage: trash FILE ..." 1>&2
+    return 1
+  fi
+  if [ ! -d "$TRASHDIR" ]; then
+    \mkdir -p "$TRASHDIR" || return 1
+  fi
+  for file in "${@}"; do
+    \mv "$file" "$TRASHDIR" &&
+      echo "Trashed '$file'"
+  done
+}
+
+rmtrash() {
+  if [ ! -d "$TRASHDIR" ]; then
+    \mkdir -p "$TRASHDIR" || return 1
+  fi
+  read -r -n 1 -p "Delete ALL contents of '$TRASHDIR'? " choice
+  echo
+  case $choice in
+    y | Y)
+      \rm -rf "${TRASHDIR:?}"/{*,.[^.],.??*} &&
+        echo "Trash emptied"
+      ;;
+  esac
+}
+
+lstrash() {
+  if [ ! -d "$TRASHDIR" ]; then
+    \mkdir -p "$TRASHDIR" || return 1
+  fi
+  tmp_f=$(mktemp) || return 1
+  \ls -lAhSF "$TRASHDIR" | tail -n +2 | tee $tmp_f
+  size=$(du -hs "$TRASHDIR" | cut -f 1)
+  count=$(wc -l $tmp_f | cut -f 1 -d ' ')
+  if [ "$count" -eq 0 ]; then
+    echo "Trash empty!"
+  else
+    echo "Size: $size Count: $count"
+  fi
+  \rm "$tmp_f"
+}
+
+mvtrash() {
+  if [ ! -d "$TRASHDIR" ]; then
+    \mkdir -p "$TRASHDIR" || return 1
+  fi
+  if [ "${#@}" -lt 2 ]; then
+    echo "Usage: mvtrash FILE ... DEST" 1>&2
+    return 1
+  fi
+  for file in "${@:1:$#-1}"; do
+    \mv "$TRASHDIR/$file" "${@:$#:1}" &&
+      echo "'$file' moved to '${@:$#:1}'"
+  done
+}
